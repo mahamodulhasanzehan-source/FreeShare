@@ -1,0 +1,6 @@
+{
+  "name": "FlareMedia",
+  "description": "Anonymous high-performance image and video sharing platform backed by Backblaze B2 private storage with zero transcoding and lossless downloads.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
