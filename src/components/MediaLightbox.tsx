@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { X, ShieldAlert } from 'lucide-react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { X, ShieldAlert, VolumeX } from 'lucide-react';
 import type { MediaItem } from '../types/media.ts';
 
 interface MediaLightboxProps {
@@ -10,6 +10,8 @@ interface MediaLightboxProps {
 
 export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) => {
   const [resolvedItem, setResolvedItem] = useState<MediaItem | null>(item);
+  const [isAutoMuted, setIsAutoMuted] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   // Keyboard escape handler
   useEffect(() => {
@@ -24,6 +26,7 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
   useEffect(() => {
     if (!item) {
       setResolvedItem(null);
+      setIsAutoMuted(false);
       return;
     }
 
@@ -40,6 +43,30 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
         .catch(() => {});
     }
   }, [item]);
+
+  // Reliable video autoplay helper
+  const handlePlayVideo = useCallback(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // First attempt: try normal unmuted playback
+    const playPromise = video.play();
+    if (playPromise !== undefined) {
+      playPromise.catch(() => {
+        // Browser autoplay policy blocked unmuted sound (common on direct links without prior interaction).
+        // Fallback: mute audio and play immediately so video auto-starts seamlessly.
+        video.muted = true;
+        setIsAutoMuted(true);
+        video.play().catch(() => {});
+      });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (resolvedItem?.type === 'video' && resolvedItem.viewUrl) {
+      handlePlayVideo();
+    }
+  }, [resolvedItem?.viewUrl, resolvedItem?.type, handlePlayVideo]);
 
   if (!resolvedItem) return null;
 
@@ -63,14 +90,40 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
         <X className="w-6 h-6 sm:w-7 sm:h-7" />
       </button>
 
+      {/* Auto-Muted Notice (only shows if browser forced muted autoplay on direct link) */}
+      {isAutoMuted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            if (videoRef.current) {
+              videoRef.current.muted = false;
+              setIsAutoMuted(false);
+            }
+          }}
+          className="fixed bottom-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-zinc-900/90 hover:bg-zinc-800 text-white text-xs border border-zinc-700 backdrop-blur-md shadow-xl transition-all cursor-pointer"
+        >
+          <VolumeX className="w-3.5 h-3.5 text-zinc-400" />
+          <span>Click to unmute</span>
+        </button>
+      )}
+
       {/* Media Canvas - Edge to Edge / Border to Border */}
       <div className="w-full h-full flex items-center justify-center bg-black">
         {currentItem.type === 'video' ? (
           <video
+            ref={videoRef}
+            key={currentItem.viewUrl}
             src={currentItem.viewUrl}
             controls
             autoPlay
             playsInline
+            onLoadedMetadata={handlePlayVideo}
+            onCanPlay={handlePlayVideo}
+            onVolumeChange={() => {
+              if (videoRef.current && !videoRef.current.muted) {
+                setIsAutoMuted(false);
+              }
+            }}
             className="w-full h-full max-w-full max-h-full object-contain"
           />
         ) : currentItem.isSvg ? (
