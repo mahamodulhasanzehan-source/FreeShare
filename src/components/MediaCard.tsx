@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Play, Download, Link2, Check, FileQuestion } from 'lucide-react';
+import { Play, Download, Link2, Check, FileQuestion, MoreVertical, FileText, Calendar, HardDrive } from 'lucide-react';
 import type { MediaItem } from '../types/media.ts';
 import { formatBytes, formatRelativeTime, truncateFilename, isTouchDevice } from '../utils/formatters.ts';
 
@@ -11,9 +11,11 @@ interface MediaCardProps {
 
 export const MediaCard: React.FC<MediaCardProps> = ({ item, onOpen, onCopyLink }) => {
   const [isHovered, setIsHovered] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [imgError, setImgError] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const isTouch = isTouchDevice();
 
   useEffect(() => {
@@ -30,15 +32,31 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onOpen, onCopyLink }
     }
   }, [isHovered, item.type, isTouch]);
 
+  // Click outside listener to close three-dots dropdown
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [menuOpen]);
+
   const handleCopy = (e: React.MouseEvent) => {
     e.stopPropagation();
     onCopyLink(item);
     setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    setTimeout(() => {
+      setCopied(false);
+      setMenuOpen(false);
+    }, 1500);
   };
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
+    setMenuOpen(false);
     if (item.downloadUrl) {
       const a = document.createElement('a');
       a.href = item.downloadUrl;
@@ -51,15 +69,20 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onOpen, onCopyLink }
     }
   };
 
+  const toggleMenu = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setMenuOpen((prev) => !prev);
+  };
+
   return (
     <div
       onClick={() => onOpen(item)}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
-      className="group relative flex flex-col overflow-hidden rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:shadow-lg hover:shadow-black/40 transition-all duration-200 cursor-pointer"
+      className="group relative flex flex-col overflow-visible rounded-xl bg-zinc-900/60 border border-zinc-800/80 hover:border-zinc-700 hover:shadow-lg hover:shadow-black/40 transition-all duration-200 cursor-pointer"
     >
-      {/* Media Canvas Area */}
-      <div className="relative aspect-video w-full bg-zinc-950 flex items-center justify-center overflow-hidden">
+      {/* Media Thumbnail / Video Module */}
+      <div className="relative aspect-video w-full bg-zinc-950 flex items-center justify-center overflow-hidden rounded-t-xl">
         {item.type === 'video' ? (
           <>
             <video
@@ -92,41 +115,77 @@ export const MediaCard: React.FC<MediaCardProps> = ({ item, onOpen, onCopyLink }
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
         )}
-
-        {/* Floating Quick Action Buttons on Hover */}
-        <div className="absolute top-1.5 right-1.5 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button
-            onClick={handleCopy}
-            title="Copy permanent share link"
-            className="p-1 rounded bg-black/70 hover:bg-black text-zinc-300 hover:text-white backdrop-blur-sm transition-colors"
-          >
-            {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Link2 className="w-3 h-3" />}
-          </button>
-          <button
-            onClick={handleDownload}
-            title="Download original file"
-            className="p-1 rounded bg-black/70 hover:bg-black text-zinc-300 hover:text-white backdrop-blur-sm transition-colors"
-          >
-            <Download className="w-3 h-3" />
-          </button>
-        </div>
       </div>
 
-      {/* Card Body - Zero Pill Discipline */}
-      <div className="p-2 sm:p-3">
-        <h3
-          title={item.originalFilename}
-          className="text-xs sm:text-sm font-medium text-zinc-200 truncate group-hover:text-white transition-colors"
-        >
-          {truncateFilename(item.originalFilename, 28)}
-        </h3>
+      {/* Card Body - Name, Date, and Three Dots Menu */}
+      <div className="p-2.5 sm:p-3 relative">
+        <div className="flex items-center justify-between gap-1.5">
+          {/* File Name */}
+          <h3
+            title={item.originalFilename}
+            className="text-xs sm:text-sm font-medium text-zinc-200 truncate group-hover:text-white transition-colors flex-1"
+          >
+            {truncateFilename(item.originalFilename, 28)}
+          </h3>
 
-        {/* Clean unboxed metadata with typographic separators */}
-        <div className="mt-0.5 sm:mt-1 flex items-center gap-1 text-[10px] sm:text-xs text-zinc-500 font-mono tabular-nums">
-          <span>{item.extension.toUpperCase()}</span>
-          <span aria-hidden="true">·</span>
-          <span>{formatBytes(item.size)}</span>
+          {/* Three Dots Button */}
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              onClick={toggleMenu}
+              title="Media options & details"
+              className="p-1 rounded-md text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            >
+              <MoreVertical className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+            </button>
+
+            {/* Dropdown Menu */}
+            {menuOpen && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="absolute right-0 bottom-full mb-1.5 z-40 w-52 rounded-xl bg-zinc-900 border border-zinc-700/80 shadow-2xl p-2 text-xs text-zinc-300 backdrop-blur-md animate-fade-in"
+              >
+                {/* Details Section */}
+                <div className="space-y-1.5 pb-2 border-b border-zinc-800 text-[11px] font-mono">
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <HardDrive className="w-3 h-3 text-zinc-500 shrink-0" />
+                    <span>Size: <strong className="text-zinc-200 tabular-nums">{formatBytes(item.size)}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <FileText className="w-3 h-3 text-zinc-500 shrink-0" />
+                    <span>Format: <strong className="text-zinc-200">{item.extension.toUpperCase()}</strong></span>
+                  </div>
+                  <div className="flex items-center gap-2 text-zinc-400">
+                    <Calendar className="w-3 h-3 text-zinc-500 shrink-0" />
+                    <span>Uploaded: <strong className="text-zinc-200">{formatRelativeTime(item.uploadedAt)}</strong></span>
+                  </div>
+                </div>
+
+                {/* Actions Section */}
+                <div className="pt-1.5 space-y-1">
+                  <button
+                    onClick={handleCopy}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 text-left text-zinc-200 hover:text-white transition-colors"
+                  >
+                    {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Link2 className="w-3.5 h-3.5 text-zinc-400" />}
+                    <span>{copied ? 'Link Copied!' : 'Copy Share Link'}</span>
+                  </button>
+                  <button
+                    onClick={handleDownload}
+                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-zinc-800 text-left text-zinc-200 hover:text-white transition-colors"
+                  >
+                    <Download className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Download Original</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
+
+        {/* Upload Date (replacing size and format on the face of the card) */}
+        <p className="mt-0.5 text-[10px] sm:text-xs text-zinc-500 font-mono tabular-nums">
+          {formatRelativeTime(item.uploadedAt)}
+        </p>
       </div>
     </div>
   );
