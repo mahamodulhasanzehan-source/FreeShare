@@ -10,17 +10,7 @@ interface MediaLightboxProps {
 
 export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) => {
   const [resolvedItem, setResolvedItem] = useState<MediaItem | null>(item);
-  const [showExitHint, setShowExitHint] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
-
-  // Fade out the exit hint after 2.5 seconds
-  useEffect(() => {
-    if (item) {
-      setShowExitHint(true);
-      const timer = setTimeout(() => setShowExitHint(false), 2500);
-      return () => clearTimeout(timer);
-    }
-  }, [item]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -125,14 +115,6 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
         <X className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
 
-      {/* Floating Exit Hint (fades out after 2.5s) */}
-      <div
-        className={`fixed top-4 sm:top-6 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-full bg-zinc-900/75 border border-white/10 text-[11px] font-medium text-zinc-300 backdrop-blur-xl shadow-lg pointer-events-none transition-opacity duration-700 ${
-          showExitHint ? 'opacity-100' : 'opacity-0'
-        }`}
-      >
-        Double-click anywhere to exit
-      </div>
 
       {/* Media Canvas - Edge to Edge / Border to Border */}
       <div className="w-full h-full flex items-center justify-center bg-black">
