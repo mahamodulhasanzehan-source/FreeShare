@@ -65,12 +65,18 @@ export default function App() {
     fetchStats();
   }, [fetchMedia]);
 
-  // Deep linking: check URL for ?v=key parameter
+  // Deep linking: check URL for ?v=filename&id=id or ?v=key parameter
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const mediaKey = urlParams.get('v');
-    if (mediaKey) {
-      fetch(`/api/resolve?key=${encodeURIComponent(mediaKey)}`)
+    const vParam = urlParams.get('v') || urlParams.get('file');
+    const idParam = urlParams.get('id');
+
+    if (vParam || idParam) {
+      const query = new URLSearchParams();
+      if (vParam) query.set('v', vParam);
+      if (idParam) query.set('id', idParam);
+
+      fetch(`/api/resolve?${query.toString()}`)
         .then((res) => res.json())
         .then((data) => {
           if (!data.error) {
@@ -84,7 +90,8 @@ export default function App() {
   const handleOpenItem = (item: MediaItem) => {
     setSelectedItem(item);
     const url = new URL(window.location.href);
-    url.searchParams.set('v', item.key);
+    url.searchParams.set('v', item.originalFilename);
+    url.searchParams.set('id', item.id);
     window.history.pushState({}, '', url.toString());
   };
 
@@ -92,13 +99,17 @@ export default function App() {
     setSelectedItem(null);
     const url = new URL(window.location.href);
     url.searchParams.delete('v');
+    url.searchParams.delete('id');
+    url.searchParams.delete('file');
     window.history.pushState({}, '', url.toString());
   };
 
   const handleCopyLink = (item: MediaItem) => {
-    const permalink = `${window.location.origin}/?v=${encodeURIComponent(item.key)}`;
+    const permalink = item.id
+      ? `${window.location.origin}/?v=${encodeURIComponent(item.originalFilename)}&id=${item.id}`
+      : `${window.location.origin}/?v=${encodeURIComponent(item.originalFilename)}`;
     navigator.clipboard.writeText(permalink);
-    showToast(`Permanent share link copied to clipboard`);
+    showToast(`Link copied: ${item.originalFilename}`);
   };
 
   const handleScrollToSection = (sectionId: string) => {
@@ -117,7 +128,7 @@ export default function App() {
       />
 
       {/* Main Container */}
-      <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 py-4 sm:py-6 overflow-x-hidden">
+      <main className="flex-1 mx-auto w-full max-w-7xl px-3 sm:px-6 lg:px-8 pt-2 pb-8 sm:pb-12 overflow-x-hidden">
         {/* Gallery Section */}
         <section id="gallery" className="mt-2">
           <GalleryControls
@@ -158,21 +169,21 @@ export default function App() {
                 </button>
               </div>
             ) : items.length === 0 ? (
-              <div className="rounded-xl border border-zinc-800/80 bg-zinc-900/20 p-5 sm:p-12 text-center max-w-sm sm:max-w-md mx-auto my-6 sm:my-12">
-                <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center text-zinc-400 mx-auto mb-3 sm:mb-4">
-                  <Film className="w-5 h-5 sm:w-6 sm:h-6" />
+              <div className="rounded-2xl border border-white/[0.08] bg-zinc-900/30 p-6 sm:p-12 text-center max-w-sm sm:max-w-md mx-auto my-8 sm:my-16 backdrop-blur-md shadow-2xl animate-fade-in">
+                <div className="w-12 h-12 rounded-2xl bg-zinc-900 border border-white/10 flex items-center justify-center text-zinc-300 mx-auto mb-4 shadow-inner">
+                  <Film className="w-6 h-6" />
                 </div>
-                <h3 className="text-xs sm:text-sm font-semibold text-white">No media found</h3>
-                <p className="mt-1 text-[11px] sm:text-xs text-zinc-400">
+                <h3 className="text-sm sm:text-base font-semibold text-white tracking-tight">No media found</h3>
+                <p className="mt-1.5 text-xs text-zinc-400 leading-relaxed">
                   {searchQuery
                     ? `No media matches "${searchQuery}".`
                     : 'Be the first to share an image or video to the gallery.'}
                 </p>
                 <button
                   onClick={() => setIsUploadOpen(true)}
-                  className="mt-4 sm:mt-5 inline-flex items-center gap-1.5 sm:gap-2 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-lg bg-white hover:bg-zinc-200 text-xs font-semibold text-zinc-950 transition-colors"
+                  className="mt-5 inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-white hover:bg-zinc-100 text-xs font-semibold text-zinc-950 transition-all duration-200 shadow-[0_0_20px_rgba(255,255,255,0.08)] hover:shadow-[0_0_24px_rgba(255,255,255,0.2)] active:scale-[0.98] cursor-pointer"
                 >
-                  <Upload className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                  <Upload className="w-3.5 h-3.5" />
                   <span>Upload Media</span>
                 </button>
               </div>
@@ -205,22 +216,6 @@ export default function App() {
         </section>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-zinc-800/80 py-6 text-center text-xs text-zinc-500 overflow-hidden">
-        <div className="mx-auto max-w-7xl px-3 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-left">
-          <div className="flex flex-wrap items-center justify-center sm:justify-start gap-1.5 sm:gap-2">
-            <span className="font-semibold text-zinc-400">FlareMedia</span>
-            <span>·</span>
-            <span>Lossless Private S3 Media Hub</span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center sm:justify-end gap-2 text-zinc-500 font-mono text-[11px] sm:text-xs">
-            <span>Direct S3 Presigning</span>
-            <span>·</span>
-            <span>Zero Transcoding</span>
-          </div>
-        </div>
-      </footer>
-
       {/* Lightbox Modal */}
       <MediaLightbox
         item={selectedItem}
@@ -240,9 +235,9 @@ export default function App() {
 
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 rounded-lg bg-zinc-900 border border-zinc-700 px-4 py-2.5 text-xs text-white shadow-xl animate-fade-in">
-          <Check className="w-4 h-4 text-emerald-400" />
-          <span>{toastMessage}</span>
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 sm:left-auto sm:right-6 sm:translate-x-0 z-50 flex items-center gap-2 rounded-full bg-zinc-900/90 border border-white/10 px-4 py-2 text-xs text-white shadow-2xl backdrop-blur-xl animate-fade-in whitespace-nowrap">
+          <Check className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="font-medium">{toastMessage}</span>
         </div>
       )}
     </div>

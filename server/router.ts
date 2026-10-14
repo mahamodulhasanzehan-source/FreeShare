@@ -67,12 +67,21 @@ export async function apiRouter(req: IncomingMessage, res: ServerResponse): Prom
     }
 
     if (pathname === '/api/resolve' && (req.method === 'GET' || req.method === 'POST')) {
-      const key = urlObj.searchParams.get('key') || (req.method === 'POST' ? (await parseJsonBody(req)).key : '');
-      if (!key) {
-        sendJson(res, 400, { error: 'Media key is required' });
+      const v = urlObj.searchParams.get('v') || urlObj.searchParams.get('key') || urlObj.searchParams.get('file');
+      const id = urlObj.searchParams.get('id');
+      const filename = urlObj.searchParams.get('filename') || urlObj.searchParams.get('name');
+      const postBody = req.method === 'POST' ? await parseJsonBody(req) : {};
+
+      const targetKey = v || postBody.key || postBody.v || postBody.file || '';
+      const targetId = id || postBody.id || '';
+      const targetFilename = filename || postBody.filename || postBody.name || '';
+
+      if (!targetKey && !targetId && !targetFilename) {
+        sendJson(res, 400, { error: 'Media identifier or filename is required' });
         return true;
       }
-      const result = await handleResolveMedia(key);
+
+      const result = await handleResolveMedia({ key: targetKey, id: targetId, filename: targetFilename });
       sendJson(res, 200, result);
       return true;
     }

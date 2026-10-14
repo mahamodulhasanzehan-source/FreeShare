@@ -116,31 +116,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-2 sm:p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xl p-2 sm:p-4 animate-fade-in"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="relative flex flex-col w-full max-w-2xl max-h-[92vh] rounded-2xl bg-zinc-950 border border-zinc-800 shadow-2xl overflow-hidden"
+        className="relative flex flex-col w-full max-w-2xl max-h-[92vh] rounded-2xl bg-zinc-950/90 border border-white/10 shadow-[0_24px_50px_rgba(0,0,0,0.9)] overflow-hidden backdrop-blur-2xl animate-scale-in"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-800 px-4 sm:px-6 py-3 sm:py-4 bg-zinc-900/60">
+        <div className="flex items-center justify-between border-b border-white/[0.07] px-4 sm:px-6 py-3.5 sm:py-4 bg-zinc-900/40">
           <div>
-            <h2 className="text-sm sm:text-base font-semibold text-white">Upload Media</h2>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Direct upload to Backblaze B2. Original bytes preserved with zero transcoding.
+            <h2 className="text-sm sm:text-base font-semibold text-white tracking-tight">Upload Media</h2>
+            <p className="text-[11px] sm:text-xs text-zinc-400 mt-0.5">
+              Direct transfer to private storage. Original bytes preserved with zero transcoding.
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition-colors"
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
         </div>
 
         {/* Dropzone */}
-        <div className="p-6 overflow-y-auto space-y-4">
+        <div className="p-4 sm:p-6 overflow-y-auto space-y-4">
           <div
             onDragOver={(e) => {
               e.preventDefault();
@@ -153,10 +153,10 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               handleFilesAdded(e.dataTransfer.files);
             }}
             onClick={() => fileInputRef.current?.click()}
-            className={`relative flex flex-col items-center justify-center p-8 border-2 border-dashed rounded-xl transition-all cursor-pointer ${
+            className={`group relative flex flex-col items-center justify-center p-8 sm:p-10 border-2 border-dashed rounded-2xl transition-all duration-200 cursor-pointer ${
               isDragging
-                ? 'border-white bg-zinc-900/80 scale-[0.99]'
-                : 'border-zinc-800 bg-zinc-900/30 hover:border-zinc-700 hover:bg-zinc-900/50'
+                ? 'border-white bg-white/[0.08] scale-[0.99]'
+                : 'border-white/[0.1] bg-white/[0.015] hover:border-white/25 hover:bg-white/[0.035]'
             }`}
           >
             <input
@@ -167,13 +167,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
               className="hidden"
               onChange={(e) => handleFilesAdded(e.target.files)}
             />
-            <div className="w-12 h-12 rounded-full bg-zinc-800/60 border border-zinc-700 flex items-center justify-center text-white mb-3">
-              <FileUp className="w-6 h-6" />
+            <div className="w-12 h-12 rounded-xl bg-zinc-900/80 border border-white/10 flex items-center justify-center text-white mb-3 shadow-inner group-hover:scale-105 transition-transform">
+              <FileUp className="w-6 h-6 text-zinc-300" />
             </div>
             <p className="text-sm font-medium text-white text-center">
-              Drop images or videos here, or <span className="text-zinc-300 underline underline-offset-2">browse</span>
+              Drop images or videos here, or <span className="text-zinc-300 underline underline-offset-4 decoration-zinc-600 group-hover:decoration-white transition-colors">browse</span>
             </p>
-            <p className="text-xs text-zinc-500 mt-1 text-center font-mono">
+            <p className="text-xs text-zinc-500 mt-1.5 text-center font-mono">
               JPEG, PNG, WebP, GIF, SVG, AVIF, MP4, WebM, MOV · Up to 5 GB
             </p>
           </div>
@@ -195,7 +195,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                 {tasks.map((task) => (
                   <div
                     key={task.id}
-                    className="p-3 rounded-lg bg-zinc-900/80 border border-zinc-800 space-y-2"
+                    className="p-3 rounded-xl bg-zinc-900/60 border border-white/[0.06] space-y-2"
                   >
                     <div className="flex items-center justify-between text-xs">
                       <div className="flex items-center gap-2 min-w-0 pr-2">
@@ -203,7 +203,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                           {truncateFilename(task.file.name, 30)}
                         </span>
                         <span className="text-[10px] text-zinc-500 font-mono shrink-0">
-                          {task.mode === 'multipart' ? '10MB S3 Multi-Part' : 'Direct PUT'}
+                          {task.mode === 'multipart' ? '10MB Multi-Part' : 'Direct PUT'}
                         </span>
                       </div>
 
@@ -229,7 +229,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                           <button
                             onClick={() => retryTask(task)}
                             title="Retry upload"
-                            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-zinc-800"
+                            className="p-1 rounded text-zinc-400 hover:text-white hover:bg-white/10 cursor-pointer"
                           >
                             <RotateCcw className="w-3.5 h-3.5" />
                           </button>
@@ -237,7 +237,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                         <button
                           onClick={() => cancelTask(task)}
                           title="Cancel"
-                          className="p-1 rounded text-zinc-500 hover:text-zinc-300"
+                          className="p-1 rounded text-zinc-500 hover:text-zinc-300 cursor-pointer"
                         >
                           <X className="w-3.5 h-3.5" />
                         </button>
@@ -245,14 +245,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
                     </div>
 
                     {/* Progress Bar */}
-                    <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                    <div className="h-1.5 w-full bg-zinc-800/80 rounded-full overflow-hidden shadow-inner">
                       <div
                         className={`h-full transition-all duration-200 ${
                           task.status === 'done'
-                            ? 'bg-emerald-500'
+                            ? 'bg-emerald-400'
                             : task.status === 'error'
                             ? 'bg-rose-500'
-                            : 'bg-white'
+                            : 'bg-gradient-to-r from-zinc-300 to-white'
                         }`}
                         style={{ width: `${task.progress}%` }}
                       />
@@ -269,14 +269,14 @@ export const UploadModal: React.FC<UploadModalProps> = ({ isOpen, onClose, onUpl
         </div>
 
         {/* Footer Notice */}
-        <div className="border-t border-zinc-800 bg-zinc-900/40 px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-zinc-500">
+        <div className="border-t border-white/[0.07] bg-zinc-900/30 px-4 sm:px-6 py-3 flex items-center justify-between text-xs text-zinc-500">
           <div className="flex items-center gap-1.5 text-[11px] sm:text-xs">
             <Shield className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-            <span><span className="hidden sm:inline">Transfers travel directly to Backblaze. </span>No account required.</span>
+            <span><span className="hidden sm:inline">Direct browser-to-storage transfer. </span>No account required.</span>
           </div>
           <button
             onClick={onClose}
-            className="px-3 sm:px-4 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-white transition-colors shrink-0 ml-2"
+            className="px-3.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-xs font-medium text-white transition-colors shrink-0 ml-2 cursor-pointer shadow-sm"
           >
             Close
           </button>

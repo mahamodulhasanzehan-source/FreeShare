@@ -114,35 +114,107 @@ export async function handleListMedia(params: {
   };
 }
 
-export async function handleResolveMedia(key: string) {
+export async function handleResolveMedia(
+  params: { key?: string; id?: string; filename?: string } | string,
+  idArg?: string
+) {
   if (!isB2Configured()) {
     throw new Error('Backblaze B2 is not configured.');
   }
 
   const s3 = getS3Client();
 
+  let targetKey = typeof params === 'string' ? params : (params.key || '');
+  let targetId = typeof params === 'object' ? params.id : idArg;
+  let targetFilename = typeof params === 'object' ? (params.filename || '') : '';
+
+  // If targetKey is not an explicit v1/ key, treat it as filename or ID
+  if (targetKey && !targetKey.startsWith('v1/')) {
+    if (!targetFilename && targetKey.includes('.')) {
+      targetFilename = targetKey;
+    } else if (!targetId) {
+      targetId = targetKey;
+    }
+  }
+
+  let finalKey = targetKey.startsWith('v1/') ? targetKey : '';
+
+  // If not an exact S3 key, resolve from bucket by ID or filename
+  if (!finalKey) {
+    let continuationToken: string | undefined = undefined;
+    let foundKey: string | null = null;
+
+    do {
+      const listCmd: ListObjectsV2Command = new ListObjectsV2Command({
+        Bucket: b2Config.bucket,
+        Prefix: 'v1/',
+        MaxKeys: 1000,
+        ContinuationToken: continuationToken,
+      });
+      const listRes: any = await s3.send(listCmd);
+      const contents = listRes.Contents || [];
+
+      for (const item of contents) {
+        if (!item.Key) continue;
+        const decoded = decodeMediaKey(item.Key, item.LastModified);
+
+        // Priority 1: Match by unique ID
+        if (targetId && decoded.id === targetId) {
+          foundKey = item.Key;
+          break;
+        }
+
+        // Priority 2: Match by exact filename
+        if (
+          targetFilename &&
+          decoded.originalFilename.toLowerCase() === targetFilename.toLowerCase()
+        ) {
+          foundKey = item.Key;
+          break;
+        }
+
+        // Priority 3: Match if key ends with or contains targetKey or filename
+        if (targetKey && (item.Key === targetKey || item.Key.endsWith(targetKey) || item.Key.includes(targetKey))) {
+          foundKey = item.Key;
+          break;
+        }
+      }
+
+      if (foundKey) {
+        finalKey = foundKey;
+        break;
+      }
+
+      continuationToken = listRes.NextContinuationToken;
+    } while (continuationToken);
+  }
+
+  if (!finalKey) {
+    throw new Error('Media file not found.');
+  }
+
   // Verify object existence
   const head = await s3.send(
     new HeadObjectCommand({
       Bucket: b2Config.bucket,
-      Key: key,
+      Key: finalKey,
     })
   );
 
-  const decoded = decodeMediaKey(key, head.LastModified);
+  const decoded = decodeMediaKey(finalKey, head.LastModified);
   const cleanFilename = decoded.originalFilename.replace(/["\r\n]/g, '_');
 
   // Inline view URL
   const viewCommand = new GetObjectCommand({
     Bucket: b2Config.bucket,
-    Key: key,
+    Key: finalKey,
   });
   const viewUrl = await getSignedUrl(s3, viewCommand, { expiresIn: 3600 });
 
   // Download URL with attachment header forcing original filename
   const downloadCommand = new GetObjectCommand({
     Bucket: b2Config.bucket,
-    Key: key,
+    Key: finalKey,
     ResponseContentDisposition: `attachment; filename="${encodeURIComponent(cleanFilename)}"`,
   });
   const downloadUrl = await getSignedUrl(s3, downloadCommand, { expiresIn: 3600 });
