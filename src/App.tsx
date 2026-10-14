@@ -65,14 +65,27 @@ export default function App() {
     fetchStats();
   }, [fetchMedia]);
 
-  // Deep linking: check URL for ?v=filename&id=id or ?v=key parameter
+  // Deep linking: check URL pathname (e.g. /1014.mp4) or fallback to query parameters
   useEffect(() => {
+    let targetFilename = '';
+    const rawPath = window.location.pathname.replace(/^\/+/, '');
+    if (
+      rawPath &&
+      !rawPath.startsWith('api/') &&
+      !rawPath.startsWith('src/') &&
+      !rawPath.startsWith('@') &&
+      rawPath !== 'index.html'
+    ) {
+      targetFilename = decodeURIComponent(rawPath);
+    }
+
     const urlParams = new URLSearchParams(window.location.search);
     const vParam = urlParams.get('v') || urlParams.get('file');
     const idParam = urlParams.get('id');
 
-    if (vParam || idParam) {
+    if (targetFilename || vParam || idParam) {
       const query = new URLSearchParams();
+      if (targetFilename) query.set('filename', targetFilename);
       if (vParam) query.set('v', vParam);
       if (idParam) query.set('id', idParam);
 
@@ -81,35 +94,50 @@ export default function App() {
         .then((data) => {
           if (!data.error) {
             setSelectedItem(data);
+            // Sync browser URL cleanly to /{filename}
+            if (data.originalFilename) {
+              window.history.replaceState({}, '', `/${encodeURIComponent(data.originalFilename)}`);
+            }
           }
         })
         .catch(() => {});
     }
   }, []);
 
+  // Listen to browser Back/Forward navigation
+  useEffect(() => {
+    const handlePopState = () => {
+      const rawPath = window.location.pathname.replace(/^\/+/, '');
+      if (!rawPath || rawPath === 'index.html') {
+        setSelectedItem(null);
+      } else {
+        const filename = decodeURIComponent(rawPath);
+        fetch(`/api/resolve?filename=${encodeURIComponent(filename)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (!data.error) setSelectedItem(data);
+          })
+          .catch(() => {});
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
   const handleOpenItem = (item: MediaItem) => {
     setSelectedItem(item);
-    const url = new URL(window.location.href);
-    url.searchParams.set('v', item.originalFilename);
-    url.searchParams.set('id', item.id);
-    window.history.pushState({}, '', url.toString());
+    window.history.pushState({}, '', `/${encodeURIComponent(item.originalFilename)}`);
   };
 
   const handleCloseLightbox = () => {
     setSelectedItem(null);
-    const url = new URL(window.location.href);
-    url.searchParams.delete('v');
-    url.searchParams.delete('id');
-    url.searchParams.delete('file');
-    window.history.pushState({}, '', url.toString());
+    window.history.pushState({}, '', '/');
   };
 
   const handleCopyLink = (item: MediaItem) => {
-    const permalink = item.id
-      ? `${window.location.origin}/?v=${encodeURIComponent(item.originalFilename)}&id=${item.id}`
-      : `${window.location.origin}/?v=${encodeURIComponent(item.originalFilename)}`;
+    const permalink = `${window.location.origin}/${encodeURIComponent(item.originalFilename)}`;
     navigator.clipboard.writeText(permalink);
-    showToast(`Link copied: ${item.originalFilename}`);
+    showToast(`Link copied: ${permalink}`);
   };
 
   const handleScrollToSection = (sectionId: string) => {

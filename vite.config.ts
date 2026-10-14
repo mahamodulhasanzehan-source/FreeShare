@@ -15,9 +15,24 @@ export default defineConfig(() => {
           server.middlewares.use(async (req, res, next) => {
             try {
               const handled = await apiRouter(req, res);
-              if (!handled) {
-                next();
+              if (handled) return;
+
+              if (req.method === 'GET' && req.url) {
+                const pathname = req.url.split('?')[0];
+                if (
+                  !pathname.startsWith('/api/') &&
+                  !pathname.startsWith('/@') &&
+                  !pathname.startsWith('/src/') &&
+                  !pathname.startsWith('/node_modules/') &&
+                  !pathname.startsWith('/favicon.') &&
+                  pathname !== '/index.html' &&
+                  pathname !== '/'
+                ) {
+                  req.url = '/index.html';
+                }
               }
+
+              next();
             } catch (err) {
               next(err);
             }
