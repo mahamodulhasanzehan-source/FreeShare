@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { X, AlertTriangle, ArrowLeft, VolumeX } from 'lucide-react';
 import type { MediaItem } from '../types/media.ts';
 
 interface DirectPlayerProps {
@@ -16,7 +16,7 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showExitHint, setShowExitHint] = useState(true);
-  const [needsGesture, setNeedsGesture] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
@@ -24,7 +24,16 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
     return () => clearTimeout(timer);
   }, []);
 
-  const attemptUnmutedPlay = useCallback(() => {
+  const handleUnmute = useCallback(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.muted = false;
+      video.volume = 1.0;
+      setIsMuted(false);
+    }
+  }, []);
+
+  const attemptPlay = useCallback(() => {
     const video = videoRef.current;
     if (!video) return;
 
@@ -35,30 +44,33 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
     if (promise !== undefined) {
       promise
         .then(() => {
-          setNeedsGesture(false);
+          setIsMuted(false);
         })
-        .catch((err) => {
-          if (err.name === 'NotAllowedError' || err.name === 'AbortError') {
-            setNeedsGesture(true);
-            const resumeOnAction = () => {
-              if (videoRef.current) {
-                videoRef.current.muted = false;
-                videoRef.current.volume = 1.0;
-                videoRef.current.play().catch(() => {});
-              }
-              setNeedsGesture(false);
-              window.removeEventListener('pointerdown', resumeOnAction);
-              window.removeEventListener('keydown', resumeOnAction);
-              window.removeEventListener('touchstart', resumeOnAction);
-            };
-
-            window.addEventListener('pointerdown', resumeOnAction, { once: true });
-            window.addEventListener('keydown', resumeOnAction, { once: true });
-            window.addEventListener('touchstart', resumeOnAction, { once: true });
-          }
+        .catch(() => {
+          video.muted = true;
+          setIsMuted(true);
+          video.play().catch(() => {});
         });
     }
   }, []);
+
+  useEffect(() => {
+    if (!isMuted) return;
+
+    const onUserInteraction = () => {
+      handleUnmute();
+    };
+
+    window.addEventListener('pointerdown', onUserInteraction, { once: true });
+    window.addEventListener('touchstart', onUserInteraction, { once: true });
+    window.addEventListener('keydown', onUserInteraction, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+    };
+  }, [isMuted, handleUnmute]);
 
   useEffect(() => {
     setLoading(true);
@@ -88,9 +100,9 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
 
   useEffect(() => {
     if (item?.type === 'video' && item.viewUrl) {
-      attemptUnmutedPlay();
+      attemptPlay();
     }
-  }, [item?.viewUrl, item?.type, attemptUnmutedPlay]);
+  }, [item?.viewUrl, item?.type, attemptPlay]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -154,16 +166,17 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
         Double-click anywhere or press Esc for main menu
       </div>
 
-      {needsGesture && (
-        <div
-          onClick={() => {
-            attemptUnmutedPlay();
-            setNeedsGesture(false);
+      {isMuted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleUnmute();
           }}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 px-4 py-2 rounded-full bg-white text-zinc-950 font-medium text-xs shadow-2xl cursor-pointer hover:bg-zinc-200 transition-all animate-pulse"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white text-zinc-950 font-medium text-xs shadow-2xl cursor-pointer hover:bg-zinc-200 active:scale-95 transition-all animate-pulse"
         >
-          Click anywhere to play with audio
-        </div>
+          <VolumeX className="w-4 h-4 text-zinc-900" />
+          <span>Tap for sound</span>
+        </button>
       )}
 
       <div className="w-full h-full flex items-center justify-center bg-black">
@@ -175,8 +188,8 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
             controls
             autoPlay
             playsInline
-            onLoadedMetadata={attemptUnmutedPlay}
-            onCanPlay={attemptUnmutedPlay}
+            onLoadedMetadata={attemptPlay}
+            onCanPlay={attemptPlay}
             className="w-full h-full max-w-full max-h-full object-contain"
           />
         ) : (

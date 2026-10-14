@@ -76,11 +76,13 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
         // If unmuted autoplay without prior interaction is restricted by browser policy,
         // listen for first user interaction anywhere to immediately start unmuted playback.
         if (error.name === 'NotAllowedError' || error.name === 'AbortError') {
+          video.muted = true;
+          video.play().catch(() => {});
+
           const startOnInteraction = () => {
             if (videoRef.current) {
               videoRef.current.muted = false;
               videoRef.current.volume = 1.0;
-              videoRef.current.play().catch(() => {});
             }
             window.removeEventListener('pointerdown', startOnInteraction);
             window.removeEventListener('keydown', startOnInteraction);
