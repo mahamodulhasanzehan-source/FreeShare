@@ -4,6 +4,7 @@ import { GalleryControls } from './components/GalleryControls.tsx';
 import { MediaCard } from './components/MediaCard.tsx';
 import { MediaListItem } from './components/MediaListItem.tsx';
 import { MediaLightbox } from './components/MediaLightbox.tsx';
+import { DirectPlayer } from './components/DirectPlayer.tsx';
 import { UploadModal } from './components/UploadModal.tsx';
 import type { MediaItem, FilterCategory, SortOrder, ViewMode, StorageStats } from './types/media.ts';
 import { Upload, Film, AlertTriangle, RefreshCw, Check } from 'lucide-react';
@@ -20,6 +21,49 @@ export default function App() {
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [stats, setStats] = useState<StorageStats | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [directTarget, setDirectTarget] = useState<{ filename?: string; key?: string; id?: string } | null>(() => {
+    const pathname = window.location.pathname;
+    const search = window.location.search;
+    const urlParams = new URLSearchParams(search);
+
+    if (pathname.startsWith('/direct')) {
+      const directPath = pathname.replace(/^\/direct\/?/, '');
+      if (directPath) {
+        return { filename: decodeURIComponent(directPath) };
+      }
+      const v = urlParams.get('v') || urlParams.get('file');
+      const id = urlParams.get('id');
+      const name = urlParams.get('filename') || urlParams.get('name');
+      if (name || v || id) {
+        return {
+          filename: name ? decodeURIComponent(name) : undefined,
+          key: v || undefined,
+          id: id || undefined,
+        };
+      }
+    }
+
+    const rawPath = pathname.replace(/^\/+/, '');
+    if (
+      rawPath &&
+      !rawPath.startsWith('api/') &&
+      !rawPath.startsWith('src/') &&
+      !rawPath.startsWith('@') &&
+      rawPath !== 'index.html' &&
+      rawPath.includes('.')
+    ) {
+      return { filename: decodeURIComponent(rawPath) };
+    }
+
+    const v = urlParams.get('v') || urlParams.get('file');
+    const id = urlParams.get('id');
+    if (v || id) {
+      return { key: v || undefined, id: id || undefined };
+    }
+
+    return null;
+  });
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -60,73 +104,41 @@ export default function App() {
     }
   }, [filter, sort, searchQuery]);
 
+  // Load main page resources ONLY when not in direct mode
   useEffect(() => {
-    fetchMedia();
-    fetchStats();
-  }, [fetchMedia]);
-
-  // Deep linking: check URL pathname (e.g. /1014.mp4) or fallback to query parameters
-  useEffect(() => {
-    let targetFilename = '';
-    const rawPath = window.location.pathname.replace(/^\/+/, '');
-    if (
-      rawPath &&
-      !rawPath.startsWith('api/') &&
-      !rawPath.startsWith('src/') &&
-      !rawPath.startsWith('@') &&
-      rawPath !== 'index.html'
-    ) {
-      targetFilename = decodeURIComponent(rawPath);
+    if (!directTarget) {
+      fetchMedia();
+      fetchStats();
     }
+  }, [directTarget, fetchMedia]);
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const vParam = urlParams.get('v') || urlParams.get('file');
-    const idParam = urlParams.get('id');
-
-    if (targetFilename || vParam || idParam) {
-      const query = new URLSearchParams();
-      if (targetFilename) query.set('filename', targetFilename);
-      if (vParam) query.set('v', vParam);
-      if (idParam) query.set('id', idParam);
-
-      fetch(`/api/resolve?${query.toString()}`)
-        .then((res) => res.json())
-        .then((data) => {
-          if (!data.error) {
-            setSelectedItem(data);
-            // Sync browser URL cleanly to /{filename}
-            if (data.originalFilename) {
-              window.history.replaceState({}, '', `/${encodeURIComponent(data.originalFilename)}`);
-            }
-          }
-        })
-        .catch(() => {});
-    }
-  }, []);
-
-  // Listen to browser Back/Forward navigation
+  // Handle browser back/forward navigation
   useEffect(() => {
     const handlePopState = () => {
-      const rawPath = window.location.pathname.replace(/^\/+/, '');
-      if (!rawPath || rawPath === 'index.html') {
-        setSelectedItem(null);
-      } else {
-        const filename = decodeURIComponent(rawPath);
-        fetch(`/api/resolve?filename=${encodeURIComponent(filename)}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (!data.error) setSelectedItem(data);
-          })
-          .catch(() => {});
+      const pathname = window.location.pathname;
+      if (pathname.startsWith('/direct')) {
+        const directPath = pathname.replace(/^\/direct\/?/, '');
+        if (directPath) {
+          setDirectTarget({ filename: decodeURIComponent(directPath) });
+          setSelectedItem(null);
+          return;
+        }
       }
+      setDirectTarget(null);
+      setSelectedItem(null);
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
 
+  const handleExitDirect = () => {
+    window.history.pushState({}, '', '/');
+    setDirectTarget(null);
+  };
+
   const handleOpenItem = (item: MediaItem) => {
     setSelectedItem(item);
-    window.history.pushState({}, '', `/${encodeURIComponent(item.originalFilename)}`);
+    window.history.pushState({}, '', `/direct/${encodeURIComponent(item.originalFilename)}`);
   };
 
   const handleCloseLightbox = () => {
@@ -135,7 +147,7 @@ export default function App() {
   };
 
   const handleCopyLink = (item: MediaItem) => {
-    const permalink = `${window.location.origin}/${encodeURIComponent(item.originalFilename)}`;
+    const permalink = `${window.location.origin}/direct/${encodeURIComponent(item.originalFilename)}`;
     navigator.clipboard.writeText(permalink);
     showToast(`Link copied: ${permalink}`);
   };
@@ -146,6 +158,15 @@ export default function App() {
       el.scrollIntoView({ behavior: 'smooth' });
     }
   };
+
+  if (directTarget) {
+    return (
+      <DirectPlayer
+        target={directTarget}
+        onExitToMainMenu={handleExitDirect}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-zinc-950 text-zinc-100 flex flex-col selection:bg-zinc-800 selection:text-white">

@@ -1,6 +1,6 @@
 {
-  "summary": "Revised implementation plan for FlareMedia incorporating durable Backblaze-only self-describing key indexing (inverted timestamps and metadata encoding), production Cloudflare Turnstile enforcement with abuse disclosure, on-demand presigning and mobile-aware hover preview optimization, strict SVG sanitization/sandboxing, and resilient direct-to-B2 S3 multipart pipelines.",
-  "updatedAt": "2026-10-13T11:09:27.535201671Z",
+  "summary": "Implementation plan for a dedicated, high-speed direct playback route (/direct/:filename) that eliminates main page overhead, autoplays unmuted full screen, and exits back to the main menu.",
+  "updatedAt": "2026-10-14T17:20:54.490126158Z",
   "requestFeedback": true,
   "userFacing": true
 }
