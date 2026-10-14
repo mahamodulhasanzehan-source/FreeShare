@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Volume2, VolumeX, ShieldAlert } from 'lucide-react';
+import { X, ShieldAlert } from 'lucide-react';
 import type { MediaItem } from '../types/media.ts';
 
 interface MediaLightboxProps {
@@ -10,8 +10,6 @@ interface MediaLightboxProps {
 
 export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) => {
   const [resolvedItem, setResolvedItem] = useState<MediaItem | null>(item);
-  const [isMuted, setIsMuted] = useState(false);
-  const [showUnmuteHint, setShowUnmuteHint] = useState(false);
   const [showExitHint, setShowExitHint] = useState(true);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -30,7 +28,7 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
       if (e.key === 'Escape') {
         onClose();
       } else if (e.key.toLowerCase() === 'm' && videoRef.current) {
-        toggleMute();
+        videoRef.current.muted = !videoRef.current.muted;
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -68,52 +66,34 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
     const video = videoRef.current;
     if (!video) return;
 
+    // Ensure audio is unmuted by default
     video.muted = false;
     video.volume = 1.0;
-    setIsMuted(false);
-    setShowUnmuteHint(false);
 
     const playPromise = video.play();
     if (playPromise !== undefined) {
       playPromise.catch((error) => {
-        // Autoplay policy prevented unmuted playback (common on direct link loads without prior gesture).
-        // Fallback: start playback muted so the video starts instantly without freezing,
-        // and display a prominent sleek unmute button. Any interaction instantly unmutes.
+        // If unmuted autoplay without prior interaction is restricted by browser policy,
+        // listen for first user interaction anywhere to immediately start unmuted playback.
         if (error.name === 'NotAllowedError' || error.name === 'AbortError') {
-          video.muted = true;
-          setIsMuted(true);
-          setShowUnmuteHint(true);
-
-          video.play().catch(() => {});
-
-          const unmuteOnInteraction = () => {
+          const startOnInteraction = () => {
             if (videoRef.current) {
               videoRef.current.muted = false;
               videoRef.current.volume = 1.0;
-              setIsMuted(false);
-              setShowUnmuteHint(false);
+              videoRef.current.play().catch(() => {});
             }
-            window.removeEventListener('pointerdown', unmuteOnInteraction);
-            window.removeEventListener('keydown', unmuteOnInteraction);
+            window.removeEventListener('pointerdown', startOnInteraction);
+            window.removeEventListener('keydown', startOnInteraction);
+            window.removeEventListener('touchstart', startOnInteraction);
           };
 
-          window.addEventListener('pointerdown', unmuteOnInteraction, { once: true });
-          window.addEventListener('keydown', unmuteOnInteraction, { once: true });
+          window.addEventListener('pointerdown', startOnInteraction, { once: true });
+          window.addEventListener('keydown', startOnInteraction, { once: true });
+          window.addEventListener('touchstart', startOnInteraction, { once: true });
         }
       });
     }
   }, []);
-
-  const toggleMute = () => {
-    if (!videoRef.current) return;
-    const newMuted = !videoRef.current.muted;
-    videoRef.current.muted = newMuted;
-    setIsMuted(newMuted);
-    if (!newMuted) {
-      videoRef.current.volume = 1.0;
-      setShowUnmuteHint(false);
-    }
-  };
 
   useEffect(() => {
     if (resolvedItem?.type === 'video' && resolvedItem.viewUrl) {
@@ -151,20 +131,6 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
       >
         Double-click anywhere to exit
       </div>
-
-      {/* Muted by Autoplay Notification & Unmute Button */}
-      {currentItem.type === 'video' && showUnmuteHint && (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleMute();
-          }}
-          className="fixed bottom-8 sm:bottom-10 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full bg-white text-zinc-950 font-semibold text-xs sm:text-sm shadow-[0_12px_36px_rgba(0,0,0,0.7)] hover:bg-zinc-100 active:scale-95 transition-all duration-200 cursor-pointer animate-bounce"
-        >
-          <Volume2 className="w-4 h-4 text-zinc-950" />
-          <span>Tap anywhere to unmute</span>
-        </button>
-      )}
 
       {/* Media Canvas - Edge to Edge / Border to Border */}
       <div className="w-full h-full flex items-center justify-center bg-black">
