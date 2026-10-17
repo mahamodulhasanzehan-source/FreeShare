@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, AlertTriangle, ArrowLeft } from 'lucide-react';
+import { X, AlertTriangle, ArrowLeft, VolumeX } from 'lucide-react';
 import type { MediaItem } from '../types/media.ts';
 
 interface DirectPlayerProps {
@@ -15,7 +15,17 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
   const [item, setItem] = useState<MediaItem | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handleUnmute = useCallback(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.muted = false;
+      video.volume = 1.0;
+      setIsMuted(false);
+    }
+  }, []);
 
   const attemptPlay = useCallback(() => {
     const video = videoRef.current;
@@ -28,26 +38,48 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
     const promise = video.play();
     if (promise !== undefined) {
       promise
+        .then(() => {
+          setIsMuted(false);
+        })
         .catch(() => {
           // If browser restricts unmuted autoplay (e.g. mobile Safari/Chrome policy),
-          // play immediately so the video never pauses, and silently unmute on first touch
+          // play immediately so the video starts, and show the 'tap to unmute' hint
           video.muted = true;
+          setIsMuted(true);
           video.play().catch(() => {});
-
-          const unmuteOnInteraction = () => {
-            if (videoRef.current) {
-              videoRef.current.muted = false;
-              videoRef.current.volume = 1.0;
-            }
-          };
-
-          window.addEventListener('pointerdown', unmuteOnInteraction, { once: true, passive: true });
-          window.addEventListener('touchstart', unmuteOnInteraction, { once: true, passive: true });
-          window.addEventListener('click', unmuteOnInteraction, { once: true, passive: true });
-          window.addEventListener('keydown', unmuteOnInteraction, { once: true, passive: true });
         });
     }
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onVolumeChange = () => {
+      setIsMuted(video.muted);
+    };
+
+    video.addEventListener('volumechange', onVolumeChange);
+    return () => video.removeEventListener('volumechange', onVolumeChange);
+  }, [item?.viewUrl]);
+
+  useEffect(() => {
+    if (!isMuted) return;
+
+    const onUserInteraction = () => {
+      handleUnmute();
+    };
+
+    window.addEventListener('pointerdown', onUserInteraction, { once: true });
+    window.addEventListener('touchstart', onUserInteraction, { once: true });
+    window.addEventListener('keydown', onUserInteraction, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+    };
+  }, [isMuted, handleUnmute]);
 
   useEffect(() => {
     setLoading(true);
@@ -135,6 +167,20 @@ export const DirectPlayer: React.FC<DirectPlayerProps> = ({ target, onExitToMain
       >
         <X className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
+
+      {/* Tap to unmute hint if video is muted by default due to device/browser policy */}
+      {isMuted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleUnmute();
+          }}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white text-zinc-950 font-semibold text-xs shadow-2xl cursor-pointer hover:bg-zinc-200 active:scale-95 transition-all animate-bounce"
+        >
+          <VolumeX className="w-4 h-4 text-zinc-900" />
+          <span>Tap to unmute</span>
+        </button>
+      )}
 
       <div className="w-full h-full flex items-center justify-center bg-black">
         {item.type === 'video' ? (

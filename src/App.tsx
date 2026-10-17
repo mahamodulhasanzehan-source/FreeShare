@@ -27,8 +27,8 @@ export default function App() {
     const search = window.location.search;
     const urlParams = new URLSearchParams(search);
 
-    if (pathname.startsWith('/direct')) {
-      const directPath = pathname.replace(/^\/direct\/?/, '');
+    if (pathname.startsWith('/d/') || pathname === '/d' || pathname.startsWith('/direct')) {
+      const directPath = pathname.replace(/^\/(?:d|direct)\/?/, '');
       if (directPath) {
         return { filename: decodeURIComponent(directPath) };
       }
@@ -116,8 +116,8 @@ export default function App() {
   useEffect(() => {
     const handlePopState = () => {
       const pathname = window.location.pathname;
-      if (pathname.startsWith('/direct')) {
-        const directPath = pathname.replace(/^\/direct\/?/, '');
+      if (pathname.startsWith('/d/') || pathname === '/d' || pathname.startsWith('/direct')) {
+        const directPath = pathname.replace(/^\/(?:d|direct)\/?/, '');
         if (directPath) {
           setDirectTarget({ filename: decodeURIComponent(directPath) });
           setSelectedItem(null);
@@ -138,7 +138,7 @@ export default function App() {
 
   const handleOpenItem = (item: MediaItem) => {
     setSelectedItem(item);
-    window.history.pushState({}, '', `/direct/${encodeURIComponent(item.originalFilename)}`);
+    window.history.pushState({}, '', `/d/${encodeURIComponent(item.originalFilename)}`);
   };
 
   const handleCloseLightbox = () => {
@@ -147,7 +147,7 @@ export default function App() {
   };
 
   const handleCopyLink = (item: MediaItem) => {
-    const permalink = `${window.location.origin}/direct/${encodeURIComponent(item.originalFilename)}`;
+    const permalink = `${window.location.origin}/d/${encodeURIComponent(item.originalFilename)}`;
     navigator.clipboard.writeText(permalink);
     showToast(`Link copied: ${permalink}`);
   };

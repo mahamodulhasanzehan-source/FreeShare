@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, ShieldAlert } from 'lucide-react';
+import { X, ShieldAlert, VolumeX } from 'lucide-react';
 import type { MediaItem } from '../types/media.ts';
 
 interface MediaLightboxProps {
@@ -10,7 +10,17 @@ interface MediaLightboxProps {
 
 export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) => {
   const [resolvedItem, setResolvedItem] = useState<MediaItem | null>(item);
+  const [isMuted, setIsMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+
+  const handleUnmute = useCallback(() => {
+    const video = videoRef.current;
+    if (video) {
+      video.muted = false;
+      video.volume = 1.0;
+      setIsMuted(false);
+    }
+  }, []);
 
   // Keyboard navigation
   useEffect(() => {
@@ -62,30 +72,49 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
 
     const playPromise = video.play();
     if (playPromise !== undefined) {
-      playPromise.catch((error) => {
-        // If unmuted autoplay without prior interaction is restricted by browser policy,
-        // listen for first user interaction anywhere to immediately start unmuted playback.
-        if (error.name === 'NotAllowedError' || error.name === 'AbortError') {
-          video.muted = true;
-          video.play().catch(() => {});
-
-          const startOnInteraction = () => {
-            if (videoRef.current) {
-              videoRef.current.muted = false;
-              videoRef.current.volume = 1.0;
-            }
-            window.removeEventListener('pointerdown', startOnInteraction);
-            window.removeEventListener('keydown', startOnInteraction);
-            window.removeEventListener('touchstart', startOnInteraction);
-          };
-
-          window.addEventListener('pointerdown', startOnInteraction, { once: true });
-          window.addEventListener('keydown', startOnInteraction, { once: true });
-          window.addEventListener('touchstart', startOnInteraction, { once: true });
-        }
-      });
+      playPromise
+        .then(() => {
+          setIsMuted(false);
+        })
+        .catch((error) => {
+          if (error.name === 'NotAllowedError' || error.name === 'AbortError') {
+            video.muted = true;
+            setIsMuted(true);
+            video.play().catch(() => {});
+          }
+        });
     }
   }, []);
+
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    const onVolumeChange = () => {
+      setIsMuted(video.muted);
+    };
+
+    video.addEventListener('volumechange', onVolumeChange);
+    return () => video.removeEventListener('volumechange', onVolumeChange);
+  }, [resolvedItem?.viewUrl]);
+
+  useEffect(() => {
+    if (!isMuted) return;
+
+    const onUserInteraction = () => {
+      handleUnmute();
+    };
+
+    window.addEventListener('pointerdown', onUserInteraction, { once: true });
+    window.addEventListener('touchstart', onUserInteraction, { once: true });
+    window.addEventListener('keydown', onUserInteraction, { once: true });
+
+    return () => {
+      window.removeEventListener('pointerdown', onUserInteraction);
+      window.removeEventListener('touchstart', onUserInteraction);
+      window.removeEventListener('keydown', onUserInteraction);
+    };
+  }, [isMuted, handleUnmute]);
 
   useEffect(() => {
     if (resolvedItem?.type === 'video' && resolvedItem.viewUrl) {
@@ -114,6 +143,20 @@ export const MediaLightbox: React.FC<MediaLightboxProps> = ({ item, onClose }) =
       >
         <X className="w-5 h-5 sm:w-6 sm:h-6" />
       </button>
+
+      {/* Tap to unmute hint if video is muted by default due to device/browser policy */}
+      {isMuted && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleUnmute();
+          }}
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 inline-flex items-center gap-2.5 px-5 py-2.5 rounded-full bg-white text-zinc-950 font-semibold text-xs shadow-2xl cursor-pointer hover:bg-zinc-200 active:scale-95 transition-all animate-bounce"
+        >
+          <VolumeX className="w-4 h-4 text-zinc-900" />
+          <span>Tap to unmute</span>
+        </button>
+      )}
 
 
       {/* Media Canvas - Edge to Edge / Border to Border */}
